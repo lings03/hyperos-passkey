@@ -1,0 +1,1 @@
+-keep class io.github.rin.passkey.shizuku.CredentialSettingsService { *; }
