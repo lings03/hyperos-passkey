@@ -22,8 +22,9 @@ android {
         applicationId = "io.github.rin.passkey"
         minSdk = 34
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0.0"
+        // The Shizuku user service is restarted when this changes, so bump it with every AIDL change.
+        versionCode = 2
+        versionName = "1.1.0"
     }
 
     buildFeatures {

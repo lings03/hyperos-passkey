@@ -11,6 +11,8 @@ import android.util.Log
 import io.github.rin.passkey.BuildConfig
 import io.github.rin.passkey.R
 import io.github.rin.passkey.data.CredentialSettings
+import io.github.rin.passkey.data.DiagnosticService
+import io.github.rin.passkey.data.DumpResult
 import io.github.rin.passkey.data.SettingsFailure
 import io.github.rin.passkey.ui.AppException
 import kotlinx.coroutines.CompletableDeferred
@@ -98,7 +100,19 @@ class ShizukuClient(private val context: Context) {
     suspend fun apply(expected: CredentialSettings, target: CredentialSettings): CredentialSettings {
         val service = connectedService()
         return withContext(Dispatchers.IO) {
-            service.applySettings(userId, expected.enabled, expected.primary, target.enabled, target.primary).settingsOrThrow()
+            service.applySettings(
+                userId,
+                expected.enabled, expected.primary, expected.autofill,
+                target.enabled, target.primary, target.autofill,
+            ).settingsOrThrow()
+        }
+    }
+
+    suspend fun dump(target: DiagnosticService): DumpResult {
+        val service = connectedService()
+        return withContext(Dispatchers.IO) {
+            val reply = service.dumpService(userId, target.serviceName).orThrow()
+            DumpResult(reply.getString("output").orEmpty(), reply.getBoolean("truncated"))
         }
     }
 
@@ -154,6 +168,11 @@ class ShizukuClient(private val context: Context) {
     }
 
     private fun Bundle.settingsOrThrow(): CredentialSettings {
+        orThrow()
+        return CredentialSettings(getString("enabled"), getString("primary"), getString("autofill"))
+    }
+
+    private fun Bundle.orThrow(): Bundle {
         if (!getBoolean("ok")) {
             val resource = if (containsKey("restored")) {
                 if (getBoolean("restored")) R.string.error_write_restored else R.string.error_write_restore_failed
@@ -163,11 +182,12 @@ class ShizukuClient(private val context: Context) {
                 SettingsFailure.PERMISSION.name, SettingsFailure.REJECTED.name -> R.string.error_permission
                 SettingsFailure.READBACK.name -> R.string.error_readback
                 SettingsFailure.INVALID.name -> R.string.error_invalid
+                SettingsFailure.UNAVAILABLE.name -> R.string.error_service_unavailable
                 else -> R.string.error_operation
             }
             throw AppException(resource)
         }
-        return CredentialSettings(getString("enabled"), getString("primary"))
+        return this
     }
 
     companion object {

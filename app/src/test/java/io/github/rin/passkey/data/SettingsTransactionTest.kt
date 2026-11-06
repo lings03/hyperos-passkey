@@ -8,8 +8,8 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SettingsTransactionTest {
-    private val original = CredentialSettings("com.system/com.system.Provider", "com.system/.Provider")
-    private val target = CredentialSettings("com.vault/com.vault.Provider", "com.vault/com.vault.Provider")
+    private val original = CredentialSettings("com.system/com.system.Provider", "com.system/.Provider", null)
+    private val target = CredentialSettings("com.vault/com.vault.Provider", "com.vault/com.vault.Provider", null)
 
     @Test
     fun exclusiveSelectionReplacesBothKeys() {
@@ -22,7 +22,7 @@ class SettingsTransactionTest {
 
     @Test
     fun retainingProvidersNormalizesAndDeduplicatesComponents() {
-        val current = CredentialSettings("com.vault/.Provider:com.system/.Provider", null)
+        val current = CredentialSettings("com.vault/.Provider:com.system/.Provider", null, null)
         val selected = current.select(listOf("com.vault/com.vault.Provider"), keepOthers = true)
         assertEquals("com.vault/com.vault.Provider:com.system/com.system.Provider", selected.enabled)
         assertEquals("com.vault/com.vault.Provider", selected.primary)
@@ -96,7 +96,7 @@ class SettingsTransactionTest {
 
     @Test
     fun restoresMissingAndEmptyValuesWithoutTreatingThemAsEqual() {
-        val backup = CredentialSettings(null, "")
+        val backup = CredentialSettings(null, "", null)
         val store = FakeStore(target)
         SettingsTransaction(store).apply(target, backup)
         assertNull(store.state.enabled)
@@ -108,7 +108,7 @@ class SettingsTransactionTest {
         listOf("com.app/.Provider;reboot", "com.app/.Provider\n", "com.app/Provider:bad", "com.app/.Provider:", "$(reboot)").forEach { bad ->
             val store = FakeStore(original)
             assertThrows(IllegalArgumentException::class.java) {
-                SettingsTransaction(store).apply(original, CredentialSettings(bad, bad))
+                SettingsTransaction(store).apply(original, CredentialSettings(bad, bad, null))
             }
             assertEquals(0, store.writes)
         }
@@ -121,6 +121,62 @@ class SettingsTransactionTest {
         assertEquals(0, store.writes)
     }
 
+    @Test
+    fun writesAutofillAfterCredentialKeysAndVerifiesAllThree() {
+        val synced = target.copy(autofill = "com.vault/com.vault.Autofill")
+        val store = FakeStore(original)
+        assertEquals(synced, SettingsTransaction(store).apply(original, synced))
+        assertEquals(listOf(CredentialSettings.ENABLED_KEY, CredentialSettings.PRIMARY_KEY, CredentialSettings.AUTOFILL_KEY), store.keys)
+    }
+
+    @Test
+    fun restoresAutofillAndCredentialKeysWhenAutofillWriteFails() {
+        val before = original.copy(autofill = "com.system/com.system.Autofill")
+        val store = FakeStore(before, failAfterWrites = setOf(3))
+        val failure = assertThrows(SettingsWriteException::class.java) {
+            SettingsTransaction(store).apply(before, target.copy(autofill = "com.vault/com.vault.Autofill"))
+        }
+        assertTrue(failure.restored)
+        assertEquals(before, store.state)
+    }
+
+    @Test
+    fun rejectsInvalidAutofillValuesBeforeAnyWrite() {
+        listOf("com.app/.Autofill:com.other/.Autofill", "com.app/.Autofill;reboot", "credential-provider ", "\$(reboot)").forEach { bad ->
+            val store = FakeStore(original)
+            assertThrows(IllegalArgumentException::class.java) {
+                SettingsTransaction(store).apply(original, target.copy(autofill = bad))
+            }
+            assertEquals(0, store.writes)
+        }
+    }
+
+    @Test
+    fun acceptsPlaceholderAndEmptyAutofillValues() {
+        listOf(CredentialSettings.AUTOFILL_PLACEHOLDER, "", null).forEach { value ->
+            val store = FakeStore(original.copy(autofill = "com.system/com.system.Autofill"))
+            val result = SettingsTransaction(store).apply(store.state, store.state.copy(autofill = value))
+            assertEquals(value, result.autofill)
+        }
+    }
+
+    @Test
+    fun leavesAnUnusualButUnchangedAutofillValueAlone() {
+        val before = original.copy(autofill = "vendor autofill value")
+        val store = FakeStore(before)
+        assertEquals(target.copy(autofill = before.autofill), SettingsTransaction(store).apply(before, target.copy(autofill = before.autofill)))
+        assertEquals(listOf(CredentialSettings.ENABLED_KEY, CredentialSettings.PRIMARY_KEY), store.keys)
+    }
+
+    @Test
+    fun detectsConcurrentAutofillChange() {
+        val store = FakeStore(original.copy(autofill = "com.other/com.other.Autofill"))
+        val failure = assertThrows(SettingsAccessException::class.java) {
+            SettingsTransaction(store).apply(original, target)
+        }
+        assertEquals(SettingsFailure.CONFLICT, failure.reason)
+    }
+
     private class FakeStore(
         var state: CredentialSettings,
         private val failAfterWrites: Set<Int> = emptySet(),
@@ -128,12 +184,15 @@ class SettingsTransactionTest {
         private val onWrite: (FakeStore, Int) -> Unit = { _, _ -> },
     ) : CredentialSettingsStore {
         var writes = 0
+        val keys = mutableListOf<String>()
         override fun read() = state
         override fun write(key: String, value: String?) {
             writes++
+            keys += key
             if (writes !in ignoreWrites) state = when (key) {
                 CredentialSettings.ENABLED_KEY -> state.copy(enabled = value)
                 CredentialSettings.PRIMARY_KEY -> state.copy(primary = value)
+                CredentialSettings.AUTOFILL_KEY -> state.copy(autofill = value)
                 else -> error("Unexpected key")
             }
             onWrite(this, writes)

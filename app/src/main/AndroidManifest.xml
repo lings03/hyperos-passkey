@@ -9,7 +9,17 @@
         <intent>
             <action android:name="android.service.credentials.system.CredentialProviderService" />
         </intent>
+        <intent>
+            <action android:name="android.service.autofill.AutofillService" />
+        </intent>
+        <intent>
+            <action android:name="android.settings.SYNC_SETTINGS" />
+        </intent>
         <package android:name="moe.shizuku.privileged.api" />
+        <!-- Hosts the internal Credential Manager autofill service on Android 15 and later. -->
+        <package android:name="com.android.credentialmanager" />
+        <package android:name="com.google.android.apps.credentialmanager" />
+        <package android:name="com.token2.companion" />
     </queries>
 
     <application

@@ -1,6 +1,6 @@
 package io.github.rin.passkey.data
 
-enum class SettingsFailure { CONFLICT, TIMEOUT, PERMISSION, REJECTED, READBACK, INVALID, UNKNOWN }
+enum class SettingsFailure { CONFLICT, TIMEOUT, PERMISSION, REJECTED, READBACK, INVALID, UNAVAILABLE, UNKNOWN }
 
 class SettingsAccessException(val reason: SettingsFailure) : Exception(reason.name)
 
@@ -20,10 +20,13 @@ class SettingsTransaction(private val store: CredentialSettingsStore) {
         val before = store.read()
         if (before != expected) throw SettingsAccessException(SettingsFailure.CONFLICT)
         if (before == target) return before
+        // An unchanged autofill value is left alone even if this app would not write it itself.
+        if (before.autofill != target.autofill) target.validateAutofill()
 
         try {
-            if (before.enabled != target.enabled) store.write(CredentialSettings.ENABLED_KEY, target.enabled)
-            if (before.primary != target.primary) store.write(CredentialSettings.PRIMARY_KEY, target.primary)
+            for ((key, value) in target.values()) {
+                if (before.value(key) != value) store.write(key, value)
+            }
             val actual = store.read()
             if (actual != target) throw SettingsAccessException(SettingsFailure.READBACK)
             return actual
@@ -39,18 +42,14 @@ class SettingsTransaction(private val store: CredentialSettingsStore) {
         } catch (_: Exception) {
             return false
         }
-        val changes = listOf(
-            Triple(CredentialSettings.ENABLED_KEY, current.enabled, before.enabled to attempted.enabled),
-            Triple(CredentialSettings.PRIMARY_KEY, current.primary, before.primary to attempted.primary),
-        )
-        for ((key, actual, values) in changes) {
-            val (original, requested) = values
+        for ((key, original) in before.values()) {
+            val actual = current.value(key)
             // Do not overwrite a setting changed by another app during this operation.
-            if (actual != original && actual == requested) {
+            if (actual != original && actual == attempted.value(key)) {
                 try {
                     store.write(key, original)
                 } catch (_: Exception) {
-                    // Still attempt to restore the other key; verify both below.
+                    // Still attempt to restore the other keys; verify all of them below.
                 }
             }
         }
