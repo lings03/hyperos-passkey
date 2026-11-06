@@ -81,7 +81,6 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.miuix.ui)
-    implementation(libs.miuix.icons)
     implementation(libs.shizuku.api)
     implementation(libs.shizuku.provider)
     debugImplementation(libs.androidx.compose.ui.tooling)

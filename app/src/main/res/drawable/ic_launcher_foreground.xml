@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A key whose bow holds a person: the passkey mark. Kept inside the 66dp safe zone. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.88"
+        android:scaleY="0.88">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:fillType="evenOdd"
+            android:pathData="M55.5,54a15.5,15.5 0,1 1,-31 0a15.5,15.5 0,1 1,31 0zM44.5,48.6a4.5,4.5 0,1 1,-9 0a4.5,4.5 0,1 1,9 0zM31.6,62.2c0.6,-4.4 4.2,-7.4 8.4,-7.4s7.8,3 8.4,7.4z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M53,50.5h25.5a3.5,3.5 0,0 1,0 7H53zM66.5,56h5.5v7.5a1.5,1.5 0,0 1,-1.5 1.5h-2.5a1.5,1.5 0,0 1,-1.5 -1.5zM75,56h5.5v5a1.5,1.5 0,0 1,-1.5 1.5h-2.5a1.5,1.5 0,0 1,-1.5 -1.5z" />
+    </group>
+</vector>
